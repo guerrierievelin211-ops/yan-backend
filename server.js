@@ -85,7 +85,8 @@ app.post('/v1/chat/completions', async (req, res) => {
     res.set('Content-Type', contentType);
 
     // 流式透传
-    upstreamRes.body.pipe(res);
+    const { Readable } = require('stream');
+Readable.fromWeb(upstreamRes.body).pipe(res);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
