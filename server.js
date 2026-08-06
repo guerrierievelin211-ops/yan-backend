@@ -214,7 +214,7 @@ app.post('/api/messages/stream', async (req, res) => {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.7-sonnet',
+        model: '[脆卷-kiro-0.04]claude-sonnet-4-6-thinking',
         messages,
         stream: true
       })
