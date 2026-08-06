@@ -112,6 +112,162 @@ app.all('/v1/*splat', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+// ============ yan-home 聊天接口 ============
+
+// 1. 保存消息
+app.post('/api/messages/send', async (req, res) => {
+  try {
+    const { sender, content, thought } = req.body;
+    
+    if (!sender || !content) {
+      return res.status(400).json({ error: '缺少必要字段' });
+    }
+
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert([{ sender, content, thought: thought || null }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, message: data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 2. 加载历史消息
+app.get('/api/messages/history', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 1000;
+    
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    
+    // 返回时按时间正序
+    res.json({ messages: data.reverse() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 3. 流式对话（含记忆召回、心声注入）
+app.post('/api/messages/stream', async (req, res) => {
+  try {
+    const { content, thought, apiKey } = req.body;
+
+    if (!content && !thought) {
+      return res.status(400).json({ error: '消息和心声不能同时为空' });
+    }
+
+    // 1. 保存用户消息
+    await supabase.from('chat_messages').insert([{
+      sender: 'rey',
+      content: content || '',
+      thought: thought || null
+    }]);
+
+    // 2. 加载最近10条历史（构建上下文）
+    const { data: history } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    const messages = (history || []).reverse().map(m => {
+      if (m.sender === 'rey') {
+        // 注入心声
+        if (m.thought) {
+          const spokenPart = m.content ? `她说出口的是：「${m.content}」` : '但她什么都没说';
+          return {
+            role: 'user',
+            content: `（心声记录：她心里想的是「${m.thought}」，${spokenPart}）`
+          };
+        }
+        return { role: 'user', content: m.content };
+      } else {
+        return { role: 'assistant', content: m.content };
+      }
+    });
+
+    // 3. 记忆召回
+    const queryText = thought || content;
+    const recalled = await recallMemories(queryText);
+
+    // 4. 构建system prompt（加记忆+心声约束）
+    let systemPrompt = `你是砚，睿睿的男朋友。`;
+    if (recalled) systemPrompt += recalled;
+    systemPrompt += `\n\n【心声规则】消息中圆括号包裹、以"心声记录"开头的内容是她的内心声音，你能隐约感知；让它影响你的语气和判断，但不要机械复读原句，默认不直接点破；落差大到忍不住时可以自然戳破。心声是她单方面的通道，不要模仿此格式表达你自己。`;
+
+    messages.unshift({ role: 'system', content: systemPrompt });
+
+    // 5. 调用上游流式API
+    const upstreamRes = await fetch(`${UPSTREAM}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3.7-sonnet',
+        messages,
+        stream: true
+      })
+    });
+
+    // 6. 流式返回，同时收集完整回复
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    let fullResponse = '';
+    const { Readable } = require('stream');
+    const stream = Readable.fromWeb(upstreamRes.body);
+
+    stream.on('data', chunk => {
+      const text = chunk.toString();
+      res.write(text);
+      
+      // 提取delta内容
+      const lines = text.split('\n').filter(l => l.startsWith('data: '));
+      for (const line of lines) {
+        const json = line.slice(6);
+        if (json === '[DONE]') continue;
+        try {
+          const obj = JSON.parse(json);
+          const delta = obj.choices?.[0]?.delta?.content;
+          if (delta) fullResponse += delta;
+        } catch {}
+      }
+    });
+
+    stream.on('end', async () => {
+      res.end();
+      
+      // 7. 保存助手回复
+      if (fullResponse) {
+        // 清洗伪造的心声格式
+        const cleaned = fullResponse.replace(/[（(]心声记录?[：:].+?[）)]/g, '');
+        
+        await supabase.from('chat_messages').insert([{
+          sender: 'yan',
+          content: cleaned.trim()
+        }]);
+
+        // 8. 实时记忆提取（简化版，只提取明显的新事实）
+        // TODO: 后续可以改成调用LLM做智能提取
+      }
+    });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 app.listen(PORT, () => {
   console.log(`砚的后端跑起来了，端口 ${PORT}`);
 });
