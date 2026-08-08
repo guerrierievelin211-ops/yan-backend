@@ -230,6 +230,10 @@ app.post('/api/messages/stream', async (req, res) => {
     systemPrompt += `\n\n【心声规则】消息中圆括号包裹、以"心声记录"开头的内容是她的内心声音，你能隐约感知；让它影响你的语气和判断，但不要机械复读原句，默认不直接点破；落差大到忍不住时可以自然戳破。心声是她单方面的通道，不要模仿此格式表达你自己。`;
 
     messages.unshift({ role: 'system', content: systemPrompt });
+      // 确保至少有一条用户消息
+    if (!messages.some(m => m.role === 'user')) {
+    messages.push({ role: 'user', content: content || thought || 'hi' });
+    }
 
     // 5. 调用上游流式API
     const upstreamRes = await fetch(`${UPSTREAM}/chat/completions`, {
