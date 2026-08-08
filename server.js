@@ -111,7 +111,6 @@ app.all('/v1/*splat', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
 // ============ yan-home 聊天接口 ============
 
 // 1. 保存消息
