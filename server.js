@@ -24,6 +24,29 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', message: '砚的后端运行中' });
 });
 
+app.post('/api/test-upstream', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    const upstreamRes = await fetch(`${UPSTREAM}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: '[脆卷-kiro-0.04]claude-sonnet-4-6-thinking',
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: false,
+        max_tokens: 50
+      })
+    });
+    const data = await upstreamRes.json();
+    res.json({ status: upstreamRes.status, data });
+  } catch (e) {
+    res.json({ error: e.message });
+  }
+});
+
 // 获取embedding
 async function getEmbedding(text) {
   const res = await fetch(' https://api.siliconflow.cn/v1/embeddings',  {
