@@ -208,7 +208,7 @@ app.post('/api/messages/stream', async (req, res) => {
 
     // 5. 调用上游流式API
     const upstreamRes = await fetch(`${UPSTREAM}/chat/completions`, {
-      console.log('上游响应状态:', upstreamRes.status);
+    console.log('上游响应状态:', upstreamRes.status);
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
