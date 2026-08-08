@@ -159,6 +159,7 @@ app.get('/api/messages/history', async (req, res) => {
 app.post('/api/messages/stream', async (req, res) => {
   try {
     const { content, thought, apiKey } = req.body;
+    console.log('stream请求进来了，content:', content?.slice(0,20), 'apiKey:', apiKey?.slice(0,10));
 
     if (!content && !thought) {
       return res.status(400).json({ error: '消息和心声不能同时为空' });
@@ -207,6 +208,7 @@ app.post('/api/messages/stream', async (req, res) => {
 
     // 5. 调用上游流式API
     const upstreamRes = await fetch(`${UPSTREAM}/chat/completions`, {
+      console.log('上游响应状态:', upstreamRes.status);
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
