@@ -268,6 +268,7 @@ app.post('/api/messages/stream', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`砚的后端跑起来了，端口 ${PORT}`);
 });
