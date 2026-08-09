@@ -183,7 +183,7 @@ app.get('/api/messages/history', async (req, res) => {
 // 3. 流式对话（含记忆召回、心声注入）
 app.post('/api/messages/stream', async (req, res) => {
   try {
-    const { content, thought, apiKey } = req.body;
+    const { content, thought, apiKey, baseUrl, model } = req.body;
     console.log('stream请求进来了，content:', content?.slice(0,20), 'apiKey:', apiKey?.slice(0,10));
 
     if (!content && !thought) {
@@ -236,14 +236,15 @@ app.post('/api/messages/stream', async (req, res) => {
     }
 
     // 5. 调用上游流式API
-    const upstreamRes = await fetch(`${UPSTREAM}/chat/completions`, {
+    const upstreamUrl = baseUrl || `${UPSTREAM}`;
+    const upstreamRes = await fetch(`${upstreamUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: '[脆卷-kiro-0.04]claude-sonnet-4-6-thinking',
+        model: model || '[脆卷-kiro-0.04]claude-sonnet-4-6-thinking',
         messages,
         stream: true
       })
